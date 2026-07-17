@@ -117,3 +117,45 @@ for a copy whose rejection is understood; it is not part of normal client use.
 ```bash
 .venv/bin/python -m unittest discover -s tests
 ```
+
+## Publish a release to PyPI
+
+PyPI package names are global. First create accounts on
+[PyPI](https://pypi.org/) and [TestPyPI](https://test.pypi.org/), enable 2FA,
+and create a project-scoped API token when the project exists. Keep tokens out
+of this repository and shell history.
+
+Install the release tools in the virtual environment:
+
+```bash
+.venv/bin/pip install --upgrade build twine
+```
+
+Set the desired PEP 440 version in `pyproject.toml`, commit it, and tag the same
+version. Build from a clean checkout and validate the artifacts:
+
+Use a new output directory for every version so old artifacts cannot be
+uploaded accidentally:
+
+```bash
+.venv/bin/python -m build --outdir dist/0.1.0
+.venv/bin/python -m twine check dist/0.1.0/*
+```
+
+Upload to TestPyPI first. Use `__token__` as the username and enter the API
+token when prompted:
+
+```bash
+.venv/bin/python -m twine upload --repository testpypi dist/0.1.0/*
+```
+
+Verify installation in a fresh virtual environment, then upload the unchanged
+artifacts to production PyPI:
+
+```bash
+.venv/bin/python -m twine upload dist/0.1.0/*
+```
+
+Finally push the version commit and tag. PyPI releases cannot be replaced, so
+any correction requires a new version. After publishing, keep the exact client
+version in the Home Assistant integration's `manifest.json` synchronized.
