@@ -39,11 +39,22 @@ class LoginFormTest(unittest.TestCase):
                 ("__VIEWSTATE", "state"),
                 ("__EVENTVALIDATION", "validation"),
                 ("dnn$ctr362$Login$Login_COP$txtUsername", "reader"),
-                ("dnn$ctr362$Login$Login_COP$txtPassword", "secret"),
+                ("dnn$ctr362$Login$Login_COP$txtPassword", "päss&=+%"),
                 ("dnn$ctr362$Login$Login_COP$cmdLogin", ""),
             ),
-            form.payload("reader", "secret"),
+            form.payload("reader", "päss&=+%"),
         )
+
+    def test_generic_login_page_without_module_number(self) -> None:
+        form = parse_login_form(
+            HTML.replace("ctr362", "ctr"),
+            "https://example.test/Login?loggedoff=err",
+        )
+
+        self.assertIsNotNone(form)
+        assert form is not None
+        self.assertEqual("", form.module_id)
+        self.assertEqual("dnn$ctr$Login$Login_COP$txtPassword", form.password_field)
 
 
 if __name__ == "__main__":

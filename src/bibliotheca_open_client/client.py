@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from urllib.parse import urljoin, urlsplit
 
-from aiohttp import ClientSession, ClientTimeout
+from aiohttp import ClientSession, ClientTimeout, FormData
 
 from .parser import parse_login_form
 
@@ -84,9 +84,12 @@ class BibliothecaClient:
 
         session = await self._ensure_session()
         headers = {"Referer": initial_page.url}
+        form_data = FormData(default_to_multipart=True)
+        for name, value in login_form.payload(username, password):
+            form_data.add_field(name, value)
         async with session.post(
             login_form.action_url,
-            data=login_form.payload(username, password),
+            data=form_data,
             headers=headers,
         ) as response:
             response.raise_for_status()

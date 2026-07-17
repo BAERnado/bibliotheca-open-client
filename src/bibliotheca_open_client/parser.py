@@ -7,7 +7,9 @@ from urllib.parse import urljoin
 from bs4 import BeautifulSoup, Tag
 
 
-_MODULE_ID = re.compile(r"^dnn_ctr(?P<module_id>\d+)_Login_Login_COP_txtUsername$")
+# ponytail: an empty module ID is the generic /Login page; add a provider
+# abstraction only if a genuinely different login form is observed.
+_MODULE_ID = re.compile(r"^dnn_ctr(?P<module_id>\d*)_Login_Login_COP_txtUsername$")
 
 
 @dataclass(frozen=True)
