@@ -6,7 +6,7 @@ from urllib.parse import urlencode, urljoin, urlsplit
 from aiohttp import ClientSession, ClientTimeout, CookieJar, FormData
 from yarl import URL
 
-from .models import Loan, RejectedRenewalProbe, RenewalPreparation
+from .models import Loan, RejectedRenewalProbe, RenewalResult
 from .parser import (
     parse_bulk_renewal_controls,
     parse_direct_renewal_failure,
@@ -14,7 +14,6 @@ from .parser import (
     parse_login_form,
     parse_loans,
     parse_postback_form,
-    parse_renewal_confirmation,
     parse_renewal_query,
     parse_renewal_statuses,
 )
@@ -259,8 +258,8 @@ class BibliothecaClient:
             ),
         )
 
-    async def async_prepare_renewal(self, copy_id: str) -> RenewalPreparation:
-        """Submit one renewable checkbox without sending final confirmation."""
+    async def async_renew_loan(self, copy_id: str) -> RenewalResult:
+        """Renew one loan through OPEN's checkbox submission."""
 
         page = await self.async_fetch_account_page()
         loans = await self.async_fetch_loans(page)
@@ -268,7 +267,7 @@ class BibliothecaClient:
         if loan is None:
             raise ValueError("copy ID is not present in the current account")
         if loan.renewal is None or not loan.renewal.renewable:
-            raise RuntimeError("copy is not currently renewable; refusing preparation")
+            raise RuntimeError("copy is not currently renewable; refusing renewal")
 
         checkbox, submit, submit_value = parse_bulk_renewal_controls(page.html, copy_id)
         postback = parse_postback_form(page.html, page.url)
@@ -295,20 +294,18 @@ class BibliothecaClient:
                 html=await response.text(),
             )
 
-        confirmation = parse_renewal_confirmation(response_page.html)
         error = parse_direct_renewal_failure(response_page.html)
         response_loans = parse_loans(response_page.html)
         response_loan = next((item for item in response_loans if item.copy_id == copy_id), None)
-        account_changed = response_loan is not None and response_loan.due_date != loan.due_date
-        if confirmation is None and not account_changed and error is None:
-            raise RuntimeError("unexpected renewal preparation response")
-        message, fee = confirmation if confirmation is not None else (error, None)
-        return RenewalPreparation(
+        renewed = response_loan is not None and response_loan.due_date != loan.due_date
+        if not renewed and error is None:
+            raise RuntimeError("unexpected renewal response")
+        return RenewalResult(
             copy_id=copy_id,
-            confirmation_required=confirmation is not None,
-            account_changed=account_changed,
-            message=message,
-            fee_text=fee,
+            renewed=renewed,
+            old_due_date=loan.due_date,
+            new_due_date=response_loan.due_date if renewed else None,
+            message=error,
             response_url=response_page.url,
             response_html=response_page.html,
         )

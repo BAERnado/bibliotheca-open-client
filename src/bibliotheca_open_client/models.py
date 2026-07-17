@@ -38,13 +38,13 @@ class RejectedRenewalProbe:
 
 
 @dataclass(frozen=True)
-class RenewalPreparation:
-    """Outcome of selecting one loan through BtnExtendMediums."""
+class RenewalResult:
+    """Outcome of requesting renewal for one loan."""
 
     copy_id: str
-    confirmation_required: bool
-    account_changed: bool
+    renewed: bool
+    old_due_date: date
+    new_due_date: date | None
     message: str | None
-    fee_text: str | None
     response_url: str
     response_html: str

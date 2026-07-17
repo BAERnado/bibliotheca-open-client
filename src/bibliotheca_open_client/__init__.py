@@ -1,7 +1,7 @@
 """Async client for bibliotheca-open.de."""
 
 from .client import BibliothecaClient, FetchedPage, LoginResult
-from .models import Loan, RejectedRenewalProbe, RenewalPreparation, RenewalStatus
+from .models import Loan, RejectedRenewalProbe, RenewalResult, RenewalStatus
 from .parser import LoginForm, parse_login_form, parse_loans
 
 __all__ = [
@@ -11,7 +11,7 @@ __all__ = [
     "LoginResult",
     "Loan",
     "RejectedRenewalProbe",
-    "RenewalPreparation",
+    "RenewalResult",
     "RenewalStatus",
     "parse_login_form",
     "parse_loans",

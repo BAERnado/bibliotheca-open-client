@@ -9,7 +9,6 @@ from bibliotheca_open_client.parser import (
     parse_direct_renewal_failure,
     parse_direct_renewal_target,
     parse_postback_form,
-    parse_renewal_confirmation,
     parse_renewal_statuses,
 )
 
@@ -87,7 +86,7 @@ class LoanTest(unittest.TestCase):
             ),
         )
 
-    def test_checkbox_preparation_and_confirmation(self) -> None:
+    def test_checkbox_renewal_submission(self) -> None:
         checkbox, submit, value = parse_bulk_renewal_controls(HTML, "copy-1")
         payload = parse_postback_form(
             HTML, "https://example.test/Mein-Konto"
@@ -99,16 +98,6 @@ class LoanTest(unittest.TestCase):
         self.assertFalse(any(name.endswith("BtnExtendThis") for name, _ in payload))
         self.assertFalse(
             any(name.endswith("loansExtensionPopup$btnDefault") for name, _ in payload)
-        )
-        self.assertEqual(
-            ("Please confirm", "1.50 EUR"),
-            parse_renewal_confirmation(
-                '<div id="x_loansExtensionPopup_popup" '
-                'class="oclc-module-popup oclc-in-module-popup">'
-                '<span id="x_LblConfirmMessage">Please confirm</span>'
-                '<span id="x_LblFeeTotalData">1.50 EUR</span>'
-                '<input name="x$loansExtensionPopup$btnDefault"></div>'
-            ),
         )
 
 

@@ -70,27 +70,24 @@ Known cases include:
 OPEN exposes two different renewal paths. A per-loan `BtnExtendThis` postback
 attempts the renewal directly and is therefore a mutating operation. Do not use
 it for previews or diagnostics. The checkbox-based `BtnExtendMediums` submit
-prepares a separate confirmation dialog; only its
-`loansExtensionPopup$btnDefault` field labelled `Verlängerung durchführen`
-confirms that path. Client code must use the checkbox path, keep preparation and
-confirmation as separate explicit operations, and never submit either
-mutating target as a side effect of reading account data.
+also performs the renewal immediately; OPEN does not present a separate
+confirmation step. Client code must never submit either mutating target as a
+side effect of reading account data.
 
 The guarded development command submits exactly one currently renewable
-checkbox and stops before that final confirmation:
+checkbox and changes the account:
 
 ```bash
 .venv/bin/python -m bibliotheca_open_client \
   --username YOUR_LIBRARY_ID \
-  --prepare-renewal COPY_ID \
-  --save-html .debug/renewal-preparation.html
+  --renew COPY_ID \
+  --save-html .debug/renewal.html
 ```
 
 The client refreshes the account and renewal status first and refuses the
-request unless OPEN still marks that copy as renewable. The preparation reply
-is saved separately with `.renewal-preparation.html` appended to the snapshot
-stem. Review whether it reports a confirmation dialog or an immediate account
-change before implementing confirmation.
+request unless OPEN still marks that copy as renewable. The response is saved
+separately with `.renewal.html` appended to the snapshot stem. A changed due
+date is treated as success; OPEN's failure message is preserved otherwise.
 
 For development only, a rejected direct-renewal postback can validate the
 multipart WebForms reconstruction against a known nonrenewable copy:

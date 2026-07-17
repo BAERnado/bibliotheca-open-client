@@ -326,19 +326,3 @@ def parse_bulk_renewal_controls(html: str, copy_id: str) -> tuple[str, str, str]
         _field_name(submit, "bulk renewal submit"),
         str(submit.get("value", "")),
     )
-
-
-def parse_renewal_confirmation(html: str) -> tuple[str | None, str | None] | None:
-    """Parse a visible loansExtensionPopup confirmation dialog."""
-
-    soup = BeautifulSoup(html, "html.parser")
-    popup = soup.select_one('div[id$="loansExtensionPopup_popup"].oclc-in-module-popup')
-    confirm = soup.select_one('input[name$="loansExtensionPopup$btnDefault"]')
-    if not isinstance(popup, Tag) or not isinstance(confirm, Tag):
-        return None
-    message = popup.select_one('[id$="LblConfirmMessage"]')
-    fee = popup.select_one('[id$="LblFeeTotalData"]')
-    return (
-        message.get_text(" ", strip=True) or None if isinstance(message, Tag) else None,
-        fee.get_text(" ", strip=True) or None if isinstance(fee, Tag) else None,
-    )
