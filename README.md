@@ -29,6 +29,9 @@ This writes `.debug/account.html` with permissions `0600`. Authenticated pages
 can contain personal data and must not be committed or shared without careful
 redaction; `.debug/` is ignored by Git.
 
+For login diagnostics, the raw ASP.NET AJAX response is additionally written
+next to the snapshot with `.login-reply.txt` appended to its stem.
+
 ## Test a login
 
 Pass only the username on the command line; the password is requested without

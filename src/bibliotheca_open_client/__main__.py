@@ -26,6 +26,7 @@ async def _run(
     snapshot: Path | None,
     username: str | None,
 ) -> None:
+    login_reply = None
     async with BibliothecaClient(base_url) as client:
         if username is None:
             page = await client.async_fetch_account_page()
@@ -35,10 +36,15 @@ async def _run(
             result = await client.async_login(username, password)
             page = result.page
             authenticated = result.authenticated
+            login_reply = result.login_reply
 
     if snapshot is not None:
         _save_private(snapshot, page.html)
         print(f"Saved private HTML snapshot: {snapshot}")
+        if login_reply is not None and login_reply is not page:
+            reply_path = snapshot.with_name(f"{snapshot.stem}.login-reply.txt")
+            _save_private(reply_path, login_reply.html)
+            print(f"Saved private login reply: {reply_path}")
 
     login_form = parse_login_form(page.html, page.url)
     print(f"Fetched: {page.url} ({page.status})")

@@ -1,11 +1,17 @@
 """HTTP client for bibliotheca-open.de."""
 
 from dataclasses import dataclass
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import urlencode, urljoin, urlsplit
 
 from aiohttp import ClientSession, ClientTimeout
 
 from .parser import parse_login_form
+
+
+_BROWSER_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:153.0) "
+    "Gecko/20100101 Firefox/153.0"
+)
 
 
 @dataclass(frozen=True)
@@ -64,7 +70,12 @@ class BibliothecaClient:
 
         session = await self._ensure_session()
         url = urljoin(self._base_url, "Mein-Konto")
-        async with session.get(url) as response:
+        headers = {
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "de,en-US;q=0.9,en;q=0.8",
+            "User-Agent": _BROWSER_USER_AGENT,
+        }
+        async with session.get(url, headers=headers) as response:
             response.raise_for_status()
             return FetchedPage(
                 url=str(response.url),
@@ -88,14 +99,23 @@ class BibliothecaClient:
             )
 
         session = await self._ensure_session()
+        origin = f"{urlsplit(self._base_url).scheme}://{urlsplit(self._base_url).netloc}"
         headers = {
-            "Referer": initial_page.url,
+            "Accept": "*/*",
+            "Accept-Language": "de,en-US;q=0.9,en;q=0.8",
+            "Cache-Control": "no-cache",
+            "Content-Type": "application/x-www-form-urlencoded; charset=utf-8",
+            "Origin": origin,
+            "Pragma": "no-cache",
+            "Referer": self._base_url,
+            "User-Agent": _BROWSER_USER_AGENT,
             "X-MicrosoftAjax": "Delta=true",
             "X-Requested-With": "XMLHttpRequest",
         }
+        body = urlencode(login_form.payload(username, password)).encode("utf-8")
         async with session.post(
             login_form.action_url,
-            data=login_form.payload(username, password),
+            data=body,
             headers=headers,
         ) as response:
             response.raise_for_status()
