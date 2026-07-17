@@ -29,6 +29,7 @@ async def _run(
     login_reply = None
     response_cookie_names: tuple[str, ...] = ()
     session_cookie_names: tuple[str, ...] = ()
+    account_cookie_names: tuple[str, ...] = ()
     async with BibliothecaClient(base_url) as client:
         if username is None:
             page = await client.async_fetch_account_page()
@@ -41,6 +42,7 @@ async def _run(
             login_reply = result.login_reply
             response_cookie_names = result.response_cookie_names
             session_cookie_names = result.session_cookie_names
+            account_cookie_names = result.account_cookie_names
 
     if snapshot is not None:
         _save_private(snapshot, page.html)
@@ -61,6 +63,10 @@ async def _run(
         print(
             "Session cookies after login: "
             + (", ".join(session_cookie_names) if session_cookie_names else "none")
+        )
+        print(
+            "Cookies selected for account page: "
+            + (", ".join(account_cookie_names) if account_cookie_names else "none")
         )
     if login_form is None:
         print("No login form detected.")

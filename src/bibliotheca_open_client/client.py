@@ -3,7 +3,8 @@
 from dataclasses import dataclass
 from urllib.parse import urlencode, urljoin, urlsplit
 
-from aiohttp import ClientSession, ClientTimeout
+from aiohttp import ClientSession, ClientTimeout, CookieJar
+from yarl import URL
 
 from .parser import parse_login_form
 
@@ -32,6 +33,7 @@ class LoginResult:
     login_reply: FetchedPage
     response_cookie_names: tuple[str, ...]
     session_cookie_names: tuple[str, ...]
+    account_cookie_names: tuple[str, ...]
 
 
 class BibliothecaClient:
@@ -64,10 +66,15 @@ class BibliothecaClient:
 
     async def _ensure_session(self) -> ClientSession:
         if self._session is None:
-            self._session = ClientSession(timeout=self._timeout)
+            # OPEN's legacy auth cookies must be sent byte-for-byte like a
+            # browser; aiohttp's optional cookie quoting can invalidate them.
+            self._session = ClientSession(
+                cookie_jar=CookieJar(quote_cookie=False),
+                timeout=self._timeout,
+            )
         return self._session
 
-    async def async_fetch_account_page(self) -> FetchedPage:
+    async def async_fetch_account_page(self, *, referer: str | None = None) -> FetchedPage:
         """Fetch the account page, following redirects and retaining cookies."""
 
         session = await self._ensure_session()
@@ -77,6 +84,8 @@ class BibliothecaClient:
             "Accept-Language": "de,en-US;q=0.9,en;q=0.8",
             "User-Agent": _BROWSER_USER_AGENT,
         }
+        if referer is not None:
+            headers["Referer"] = referer
         async with session.get(url, headers=headers) as response:
             response.raise_for_status()
             return FetchedPage(
@@ -102,6 +111,9 @@ class BibliothecaClient:
                 response_cookie_names=(),
                 session_cookie_names=tuple(
                     sorted(cookie.key for cookie in session.cookie_jar)
+                ),
+                account_cookie_names=tuple(
+                    sorted(session.cookie_jar.filter_cookies(URL(initial_page.url)))
                 ),
             )
 
@@ -132,17 +144,22 @@ class BibliothecaClient:
                 html=await response.text(),
             )
         session_cookie_names = tuple(sorted(cookie.key for cookie in session.cookie_jar))
+        account_url = urljoin(self._base_url, "Mein-Konto")
+        account_cookie_names = tuple(
+            sorted(session.cookie_jar.filter_cookies(URL(account_url)))
+        )
 
         # The PageRequestManager returns a delta response, possibly containing a
         # client-side redirect. Fetching the account page again both follows that
         # intent and gives callers normal HTML to parse.
-        page = await self.async_fetch_account_page()
+        page = await self.async_fetch_account_page(referer=initial_page.url)
         return LoginResult(
             authenticated=parse_login_form(page.html, page.url) is None,
             page=page,
             login_reply=login_reply,
             response_cookie_names=response_cookie_names,
             session_cookie_names=session_cookie_names,
+            account_cookie_names=account_cookie_names,
         )
 
     async def async_close(self) -> None:
