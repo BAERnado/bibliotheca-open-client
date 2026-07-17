@@ -3,6 +3,7 @@
 .env.*
 !.env.example
 .secrets/
+.debug/
 
 # Python environments and generated files
 .venv/
