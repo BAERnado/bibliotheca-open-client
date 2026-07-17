@@ -67,12 +67,14 @@ Known cases include:
 - overdue media, where the reason includes the accrued overdue amount. Overdue
   media cannot be renewed and must first be returned.
 
-Renewal itself is a two-step WebForms operation. A per-loan `BtnExtendThis`
-postback, or the checkbox-based bulk submit, prepares the confirmation dialog.
-Only the separate `loansExtensionPopup$btnDefault` submit labelled
-`Verlängerung durchführen` performs the mutation. Client code must keep preview
-and confirmation as separate explicit operations and must never confirm as a
-side effect of reading account data.
+OPEN exposes two different renewal paths. A per-loan `BtnExtendThis` postback
+attempts the renewal directly and is therefore a mutating operation. Do not use
+it for previews or diagnostics. The checkbox-based `BtnExtendMediums` submit
+prepares a separate confirmation dialog; only its
+`loansExtensionPopup$btnDefault` field labelled `Verlängerung durchführen`
+confirms that path. Client code must use the checkbox path, keep preparation and
+confirmation as separate explicit operations, and never submit either
+mutating target as a side effect of reading account data.
 
 ## Check
 
