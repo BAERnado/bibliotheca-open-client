@@ -29,6 +29,21 @@ This writes `.debug/account.html` with permissions `0600`. Authenticated pages
 can contain personal data and must not be committed or shared without careful
 redaction; `.debug/` is ignored by Git.
 
+## Test a login
+
+Pass only the username on the command line; the password is requested without
+echo and is never stored by the client:
+
+```bash
+.venv/bin/python -m bibliotheca_open_client \
+  --username YOUR_LIBRARY_ID \
+  --save-html .debug/account-authenticated.html
+```
+
+For local automation, `BIBLIOTHECA_USERNAME` and `BIBLIOTHECA_PASSWORD` are
+also accepted. Environment variables can still be inspected by processes owned
+by the same user, so the interactive password prompt is preferred.
+
 ## Check
 
 ```bash

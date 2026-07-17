@@ -19,7 +19,17 @@ class LoginForm:
     username_field: str
     password_field: str
     submit_field: str
+    submit_value: str
     hidden_fields: tuple[tuple[str, str], ...]
+
+    def payload(self, username: str, password: str) -> tuple[tuple[str, str], ...]:
+        """Build the WebForms POST fields without discarding duplicate names."""
+
+        return self.hidden_fields + (
+            (self.username_field, username),
+            (self.password_field, password),
+            (self.submit_field, self.submit_value),
+        )
 
 
 def _field_name(element: Tag | None, description: str) -> str:
@@ -60,5 +70,6 @@ def parse_login_form(html: str, page_url: str) -> LoginForm | None:
         username_field=_field_name(username, "username"),
         password_field=_field_name(password if isinstance(password, Tag) else None, "password"),
         submit_field=_field_name(submit if isinstance(submit, Tag) else None, "submit"),
+        submit_value=str(submit.get("value", "")) if isinstance(submit, Tag) else "",
         hidden_fields=hidden_fields,
     )

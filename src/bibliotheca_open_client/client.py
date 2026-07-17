@@ -5,6 +5,8 @@ from urllib.parse import urljoin, urlsplit
 
 from aiohttp import ClientSession, ClientTimeout
 
+from .parser import parse_login_form
+
 
 @dataclass(frozen=True)
 class FetchedPage:
@@ -13,6 +15,14 @@ class FetchedPage:
     url: str
     status: int
     html: str
+
+
+@dataclass(frozen=True)
+class LoginResult:
+    """Login outcome together with the server reply for further analysis."""
+
+    authenticated: bool
+    page: FetchedPage
 
 
 class BibliothecaClient:
@@ -60,6 +70,36 @@ class BibliothecaClient:
                 status=response.status,
                 html=await response.text(),
             )
+
+    async def async_login(self, username: str, password: str) -> LoginResult:
+        """Submit the discovered WebForms login and return its response."""
+
+        if not username or not password:
+            raise ValueError("username and password must not be empty")
+
+        initial_page = await self.async_fetch_account_page()
+        login_form = parse_login_form(initial_page.html, initial_page.url)
+        if login_form is None:
+            return LoginResult(authenticated=True, page=initial_page)
+
+        session = await self._ensure_session()
+        headers = {"Referer": initial_page.url}
+        async with session.post(
+            login_form.action_url,
+            data=login_form.payload(username, password),
+            headers=headers,
+        ) as response:
+            response.raise_for_status()
+            page = FetchedPage(
+                url=str(response.url),
+                status=response.status,
+                html=await response.text(),
+            )
+
+        return LoginResult(
+            authenticated=parse_login_form(page.html, page.url) is None,
+            page=page,
+        )
 
     async def async_close(self) -> None:
         """Close only sessions created by this client."""

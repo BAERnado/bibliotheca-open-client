@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import getpass
 import os
 from pathlib import Path
 
@@ -20,9 +21,20 @@ def _save_private(path: Path, content: str) -> None:
         snapshot.write(content)
 
 
-async def _run(base_url: str, snapshot: Path | None) -> None:
+async def _run(
+    base_url: str,
+    snapshot: Path | None,
+    username: str | None,
+) -> None:
     async with BibliothecaClient(base_url) as client:
-        page = await client.async_fetch_account_page()
+        if username is None:
+            page = await client.async_fetch_account_page()
+            authenticated = False
+        else:
+            password = os.environ.get("BIBLIOTHECA_PASSWORD") or getpass.getpass()
+            result = await client.async_login(username, password)
+            page = result.page
+            authenticated = result.authenticated
 
     if snapshot is not None:
         _save_private(snapshot, page.html)
@@ -30,8 +42,10 @@ async def _run(base_url: str, snapshot: Path | None) -> None:
 
     login_form = parse_login_form(page.html, page.url)
     print(f"Fetched: {page.url} ({page.status})")
+    if username is not None:
+        print(f"Authenticated: {'yes' if authenticated else 'no'}")
     if login_form is None:
-        print("No login form detected; the session may already be authenticated.")
+        print("No login form detected.")
         return
 
     print(f"Login module: ctr{login_form.module_id}")
@@ -46,6 +60,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-url", default=DEFAULT_BASE_URL)
     parser.add_argument(
+        "--username",
+        default=os.environ.get("BIBLIOTHECA_USERNAME"),
+        help="perform a login; defaults to BIBLIOTHECA_USERNAME",
+    )
+    parser.add_argument(
         "--save-html",
         nargs="?",
         const=DEFAULT_SNAPSHOT,
@@ -54,7 +73,7 @@ def main() -> None:
         help="save potentially sensitive HTML (default: .debug/account.html)",
     )
     arguments = parser.parse_args()
-    asyncio.run(_run(arguments.base_url, arguments.save_html))
+    asyncio.run(_run(arguments.base_url, arguments.save_html, arguments.username))
 
 
 if __name__ == "__main__":

@@ -34,6 +34,16 @@ class LoginFormTest(unittest.TestCase):
             (("__VIEWSTATE", "state"), ("__EVENTVALIDATION", "validation")),
             form.hidden_fields,
         )
+        self.assertEqual(
+            (
+                ("__VIEWSTATE", "state"),
+                ("__EVENTVALIDATION", "validation"),
+                ("dnn$ctr362$Login$Login_COP$txtUsername", "reader"),
+                ("dnn$ctr362$Login$Login_COP$txtPassword", "secret"),
+                ("dnn$ctr362$Login$Login_COP$cmdLogin", ""),
+            ),
+            form.payload("reader", "secret"),
+        )
 
 
 if __name__ == "__main__":
