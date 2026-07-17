@@ -30,6 +30,8 @@ class LoginResult:
     authenticated: bool
     page: FetchedPage
     login_reply: FetchedPage
+    response_cookie_names: tuple[str, ...]
+    session_cookie_names: tuple[str, ...]
 
 
 class BibliothecaClient:
@@ -90,15 +92,19 @@ class BibliothecaClient:
             raise ValueError("username and password must not be empty")
 
         initial_page = await self.async_fetch_account_page()
+        session = await self._ensure_session()
         login_form = parse_login_form(initial_page.html, initial_page.url)
         if login_form is None:
             return LoginResult(
                 authenticated=True,
                 page=initial_page,
                 login_reply=initial_page,
+                response_cookie_names=(),
+                session_cookie_names=tuple(
+                    sorted(cookie.key for cookie in session.cookie_jar)
+                ),
             )
 
-        session = await self._ensure_session()
         origin = f"{urlsplit(self._base_url).scheme}://{urlsplit(self._base_url).netloc}"
         headers = {
             "Accept": "*/*",
@@ -119,11 +125,13 @@ class BibliothecaClient:
             headers=headers,
         ) as response:
             response.raise_for_status()
+            response_cookie_names = tuple(sorted(response.cookies.keys()))
             login_reply = FetchedPage(
                 url=str(response.url),
                 status=response.status,
                 html=await response.text(),
             )
+        session_cookie_names = tuple(sorted(cookie.key for cookie in session.cookie_jar))
 
         # The PageRequestManager returns a delta response, possibly containing a
         # client-side redirect. Fetching the account page again both follows that
@@ -133,6 +141,8 @@ class BibliothecaClient:
             authenticated=parse_login_form(page.html, page.url) is None,
             page=page,
             login_reply=login_reply,
+            response_cookie_names=response_cookie_names,
+            session_cookie_names=session_cookie_names,
         )
 
     async def async_close(self) -> None:
