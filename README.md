@@ -52,6 +52,28 @@ The legacy OPEN authentication cookies must be sent without additional cookie
 quoting. The client therefore owns a suitably configured `aiohttp.CookieJar`
 unless a session is supplied by its caller.
 
+## Renewal behavior
+
+OPEN loads renewal decisions separately from the account HTML through
+`IsCatalogueCopyExtendable`. A decision can be negative permanently or only in
+the current situation. Preserve the server's reason text instead of inferring a
+fixed category from localized wording.
+
+Known cases include:
+
+- media types excluded from renewal by the library;
+- another renewal currently producing no later due date because the library
+  calculates renewals from today instead of from the existing due date;
+- overdue media, where the reason includes the accrued overdue amount. Overdue
+  media cannot be renewed and must first be returned.
+
+Renewal itself is a two-step WebForms operation. A per-loan `BtnExtendThis`
+postback, or the checkbox-based bulk submit, prepares the confirmation dialog.
+Only the separate `loansExtensionPopup$btnDefault` submit labelled
+`Verlängerung durchführen` performs the mutation. Client code must keep preview
+and confirmation as separate explicit operations and must never confirm as a
+side effect of reading account data.
+
 ## Check
 
 ```bash
