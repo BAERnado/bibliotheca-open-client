@@ -23,13 +23,20 @@ class LoginForm:
     submit_field: str
     submit_value: str
     hidden_fields: tuple[tuple[str, str], ...]
+    auxiliary_fields: tuple[tuple[str, str], ...]
 
     def payload(self, username: str, password: str) -> tuple[tuple[str, str], ...]:
-        """Build the WebForms POST fields without discarding duplicate names."""
+        """Build the ASP.NET AJAX POST observed from the browser."""
 
-        return self.hidden_fields + (
+        update_panel = f"dnn$ctr{self.module_id}$Login_UP|{self.submit_field}"
+        return (
+            ("ScriptManager", update_panel),
+            ("__EVENTTARGET", ""),
+            ("__EVENTARGUMENT", ""),
+        ) + self.hidden_fields + self.auxiliary_fields + (
             (self.username_field, username),
             (self.password_field, password),
+            ("__ASYNCPOST", "true"),
             (self.submit_field, self.submit_value),
         )
 
@@ -65,6 +72,12 @@ def parse_login_form(html: str, page_url: str) -> LoginForm | None:
         for element in form.find_all("input", attrs={"type": "hidden"})
         if isinstance((name := element.get("name")), str)
     )
+    search = form.find("input", id="dnn_dnnSEARCH_txtSearch")
+    auxiliary_fields = (
+        ((_field_name(search, "search"), str(search.get("value", ""))),)
+        if isinstance(search, Tag)
+        else ()
+    )
 
     return LoginForm(
         action_url=urljoin(page_url, str(form.get("action", ""))),
@@ -74,4 +87,5 @@ def parse_login_form(html: str, page_url: str) -> LoginForm | None:
         submit_field=_field_name(submit if isinstance(submit, Tag) else None, "submit"),
         submit_value=str(submit.get("value", "")) if isinstance(submit, Tag) else "",
         hidden_fields=hidden_fields,
+        auxiliary_fields=auxiliary_fields,
     )

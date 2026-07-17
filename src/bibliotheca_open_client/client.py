@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from urllib.parse import urljoin, urlsplit
 
-from aiohttp import ClientSession, ClientTimeout, FormData
+from aiohttp import ClientSession, ClientTimeout
 
 from .parser import parse_login_form
 
@@ -23,6 +23,7 @@ class LoginResult:
 
     authenticated: bool
     page: FetchedPage
+    login_reply: FetchedPage
 
 
 class BibliothecaClient:
@@ -80,28 +81,38 @@ class BibliothecaClient:
         initial_page = await self.async_fetch_account_page()
         login_form = parse_login_form(initial_page.html, initial_page.url)
         if login_form is None:
-            return LoginResult(authenticated=True, page=initial_page)
+            return LoginResult(
+                authenticated=True,
+                page=initial_page,
+                login_reply=initial_page,
+            )
 
         session = await self._ensure_session()
-        headers = {"Referer": initial_page.url}
-        form_data = FormData(default_to_multipart=True)
-        for name, value in login_form.payload(username, password):
-            form_data.add_field(name, value)
+        headers = {
+            "Referer": initial_page.url,
+            "X-MicrosoftAjax": "Delta=true",
+            "X-Requested-With": "XMLHttpRequest",
+        }
         async with session.post(
             login_form.action_url,
-            data=form_data,
+            data=login_form.payload(username, password),
             headers=headers,
         ) as response:
             response.raise_for_status()
-            page = FetchedPage(
+            login_reply = FetchedPage(
                 url=str(response.url),
                 status=response.status,
                 html=await response.text(),
             )
 
+        # The PageRequestManager returns a delta response, possibly containing a
+        # client-side redirect. Fetching the account page again both follows that
+        # intent and gives callers normal HTML to parse.
+        page = await self.async_fetch_account_page()
         return LoginResult(
             authenticated=parse_login_form(page.html, page.url) is None,
             page=page,
+            login_reply=login_reply,
         )
 
     async def async_close(self) -> None:

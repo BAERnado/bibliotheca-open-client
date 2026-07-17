@@ -36,10 +36,17 @@ class LoginFormTest(unittest.TestCase):
         )
         self.assertEqual(
             (
+                (
+                    "ScriptManager",
+                    "dnn$ctr362$Login_UP|dnn$ctr362$Login$Login_COP$cmdLogin",
+                ),
+                ("__EVENTTARGET", ""),
+                ("__EVENTARGUMENT", ""),
                 ("__VIEWSTATE", "state"),
                 ("__EVENTVALIDATION", "validation"),
                 ("dnn$ctr362$Login$Login_COP$txtUsername", "reader"),
                 ("dnn$ctr362$Login$Login_COP$txtPassword", "päss&=+%"),
+                ("__ASYNCPOST", "true"),
                 ("dnn$ctr362$Login$Login_COP$cmdLogin", ""),
             ),
             form.payload("reader", "päss&=+%"),
