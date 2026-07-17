@@ -80,6 +80,19 @@ class PostbackForm:
             payload.insert(1, ("__EVENTARGUMENT", ""))
         return tuple(payload)
 
+    def checkbox_submission(
+        self,
+        checkbox_field: str,
+        submit_field: str,
+        submit_value: str,
+    ) -> tuple[tuple[str, str], ...]:
+        """Add one checked checkbox and the clicked submit control."""
+
+        return self.payload("") + (
+            (checkbox_field, "on"),
+            (submit_field, submit_value),
+        )
+
 
 def _field_name(element: Tag | None, description: str) -> str:
     if element is None or not isinstance(element.get("name"), str):
@@ -292,3 +305,40 @@ def parse_direct_renewal_failure(html: str) -> str | None:
         'div[id$="extensionsPopup_divExtensionFailed"].dnnFormError[role="alert"]'
     )
     return error.get_text(" ", strip=True) or None if isinstance(error, Tag) else None
+
+
+def parse_bulk_renewal_controls(html: str, copy_id: str) -> tuple[str, str, str]:
+    """Return checkbox and BtnExtendMediums controls for one loan."""
+
+    soup = BeautifulSoup(html, "html.parser")
+    copy_input = soup.find(
+        "input",
+        attrs={"name": re.compile(r"CopyIdChx$")},
+        value=copy_id,
+    )
+    region = copy_input.find_parent("div", class_="checkboxRegion") if isinstance(copy_input, Tag) else None
+    checkbox = region.select_one('input[name$="chkSelect"]') if isinstance(region, Tag) else None
+    submit = soup.select_one('input[name$="BtnExtendMediums"]')
+    if not isinstance(checkbox, Tag) or not isinstance(submit, Tag):
+        raise ValueError("loan has no checkbox-based renewal controls")
+    return (
+        _field_name(checkbox, "loan checkbox"),
+        _field_name(submit, "bulk renewal submit"),
+        str(submit.get("value", "")),
+    )
+
+
+def parse_renewal_confirmation(html: str) -> tuple[str | None, str | None] | None:
+    """Parse a visible loansExtensionPopup confirmation dialog."""
+
+    soup = BeautifulSoup(html, "html.parser")
+    popup = soup.select_one('div[id$="loansExtensionPopup_popup"].oclc-in-module-popup')
+    confirm = soup.select_one('input[name$="loansExtensionPopup$btnDefault"]')
+    if not isinstance(popup, Tag) or not isinstance(confirm, Tag):
+        return None
+    message = popup.select_one('[id$="LblConfirmMessage"]')
+    fee = popup.select_one('[id$="LblFeeTotalData"]')
+    return (
+        message.get_text(" ", strip=True) or None if isinstance(message, Tag) else None,
+        fee.get_text(" ", strip=True) or None if isinstance(fee, Tag) else None,
+    )

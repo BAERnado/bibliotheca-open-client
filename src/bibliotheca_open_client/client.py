@@ -6,13 +6,15 @@ from urllib.parse import urlencode, urljoin, urlsplit
 from aiohttp import ClientSession, ClientTimeout, CookieJar, FormData
 from yarl import URL
 
-from .models import Loan, RejectedRenewalProbe
+from .models import Loan, RejectedRenewalProbe, RenewalPreparation
 from .parser import (
+    parse_bulk_renewal_controls,
     parse_direct_renewal_failure,
     parse_direct_renewal_target,
     parse_login_form,
     parse_loans,
     parse_postback_form,
+    parse_renewal_confirmation,
     parse_renewal_query,
     parse_renewal_statuses,
 )
@@ -255,6 +257,60 @@ class BibliothecaClient:
                 and response_loan is not None
                 and response_loan.due_date == loan.due_date
             ),
+        )
+
+    async def async_prepare_renewal(self, copy_id: str) -> RenewalPreparation:
+        """Submit one renewable checkbox without sending final confirmation."""
+
+        page = await self.async_fetch_account_page()
+        loans = await self.async_fetch_loans(page)
+        loan = next((item for item in loans if item.copy_id == copy_id), None)
+        if loan is None:
+            raise ValueError("copy ID is not present in the current account")
+        if loan.renewal is None or not loan.renewal.renewable:
+            raise RuntimeError("copy is not currently renewable; refusing preparation")
+
+        checkbox, submit, submit_value = parse_bulk_renewal_controls(page.html, copy_id)
+        postback = parse_postback_form(page.html, page.url)
+        form_data = FormData(default_to_multipart=True)
+        for name, value in postback.checkbox_submission(checkbox, submit, submit_value):
+            form_data.add_field(name, value)
+
+        origin = f"{urlsplit(self._base_url).scheme}://{urlsplit(self._base_url).netloc}"
+        headers = {
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "de,en-US;q=0.9,en;q=0.8",
+            "Cache-Control": "no-cache",
+            "Origin": origin,
+            "Pragma": "no-cache",
+            "Referer": self._base_url,
+            "User-Agent": _BROWSER_USER_AGENT,
+        }
+        session = await self._ensure_session()
+        async with session.post(postback.action_url, data=form_data, headers=headers) as response:
+            response.raise_for_status()
+            response_page = FetchedPage(
+                url=str(response.url),
+                status=response.status,
+                html=await response.text(),
+            )
+
+        confirmation = parse_renewal_confirmation(response_page.html)
+        error = parse_direct_renewal_failure(response_page.html)
+        response_loans = parse_loans(response_page.html)
+        response_loan = next((item for item in response_loans if item.copy_id == copy_id), None)
+        account_changed = response_loan is not None and response_loan.due_date != loan.due_date
+        if confirmation is None and not account_changed and error is None:
+            raise RuntimeError("unexpected renewal preparation response")
+        message, fee = confirmation if confirmation is not None else (error, None)
+        return RenewalPreparation(
+            copy_id=copy_id,
+            confirmation_required=confirmation is not None,
+            account_changed=account_changed,
+            message=message,
+            fee_text=fee,
+            response_url=response_page.url,
+            response_html=response_page.html,
         )
 
     async def async_close(self) -> None:

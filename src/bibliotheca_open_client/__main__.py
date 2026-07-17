@@ -26,11 +26,15 @@ async def _run(
     snapshot: Path | None,
     username: str | None,
     rejected_probe_copy_id: str | None,
+    prepare_renewal_copy_id: str | None,
 ) -> None:
     login_reply = None
     response_cookie_names: tuple[str, ...] = ()
     session_cookie_names: tuple[str, ...] = ()
     account_cookie_names: tuple[str, ...] = ()
+    loans = ()
+    probe = None
+    preparation = None
     async with BibliothecaClient(base_url) as client:
         if username is None:
             page = await client.async_fetch_account_page()
@@ -50,6 +54,11 @@ async def _run(
                 if authenticated and rejected_probe_copy_id is not None
                 else None
             )
+            preparation = (
+                await client.async_prepare_renewal(prepare_renewal_copy_id)
+                if authenticated and prepare_renewal_copy_id is not None
+                else None
+            )
 
     if snapshot is not None:
         _save_private(snapshot, page.html)
@@ -58,6 +67,12 @@ async def _run(
             reply_path = snapshot.with_name(f"{snapshot.stem}.login-reply.txt")
             _save_private(reply_path, login_reply.html)
             print(f"Saved private login reply: {reply_path}")
+        if preparation is not None:
+            preparation_path = snapshot.with_name(
+                f"{snapshot.stem}.renewal-preparation.html"
+            )
+            _save_private(preparation_path, preparation.response_html)
+            print(f"Saved private renewal preparation: {preparation_path}")
 
     login_form = parse_login_form(page.html, page.url)
     print(f"Fetched: {page.url} ({page.status})")
@@ -73,6 +88,19 @@ async def _run(
             if probe is not None:
                 print(f"Rejected-renewal probe: {probe.message}")
                 print(f"Account unchanged: {'yes' if probe.account_unchanged else 'no'}")
+            if preparation is not None:
+                print(
+                    "Renewal confirmation required: "
+                    f"{'yes' if preparation.confirmation_required else 'no'}"
+                )
+                print(
+                    "Account changed during preparation: "
+                    f"{'yes' if preparation.account_changed else 'no'}"
+                )
+                if preparation.message:
+                    print(f"Renewal preparation message: {preparation.message}")
+                if preparation.fee_text:
+                    print(f"Renewal preparation fee: {preparation.fee_text}")
         print(
             "Session cookies after login: "
             + (", ".join(session_cookie_names) if session_cookie_names else "none")
@@ -114,15 +142,23 @@ def main() -> None:
         metavar="COPY_ID",
         help="dangerous diagnostic: submit a freshly nonrenewable copy and expect rejection",
     )
+    parser.add_argument(
+        "--prepare-renewal",
+        metavar="COPY_ID",
+        help="prepare one checkbox renewal without sending final confirmation",
+    )
     arguments = parser.parse_args()
-    if arguments.probe_rejected_renewal and not arguments.username:
-        parser.error("--probe-rejected-renewal requires --username")
+    if arguments.probe_rejected_renewal and arguments.prepare_renewal:
+        parser.error("renewal diagnostics are mutually exclusive")
+    if (arguments.probe_rejected_renewal or arguments.prepare_renewal) and not arguments.username:
+        parser.error("renewal diagnostics require --username")
     asyncio.run(
         _run(
             arguments.base_url,
             arguments.save_html,
             arguments.username,
             arguments.probe_rejected_renewal,
+            arguments.prepare_renewal,
         )
     )
 

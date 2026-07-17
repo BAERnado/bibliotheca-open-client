@@ -5,9 +5,11 @@ import unittest
 
 from bibliotheca_open_client import RenewalStatus, parse_loans
 from bibliotheca_open_client.parser import (
+    parse_bulk_renewal_controls,
     parse_direct_renewal_failure,
     parse_direct_renewal_target,
     parse_postback_form,
+    parse_renewal_confirmation,
     parse_renewal_statuses,
 )
 
@@ -17,10 +19,14 @@ HTML = """
 <input type="hidden" name="__EVENTTARGET" value="">
 <input type="hidden" name="__EVENTARGUMENT" value="old">
 <input type="hidden" name="__dnnVariable" value="state">
+<input type="submit" name="account$BtnExtendMediums" value="Renew selected">
 <table id="dnn_ctr375_MainView_tpnlLoans_ucLoansView_grdViewLoans">
   <tr><th>Select</th><th>Cover</th><th>Title</th><th>Author</th>
       <th>Group</th><th>Due</th><th>Renewal</th></tr>
-  <tr><td></td><td></td><td><a>Example title</a></td>
+  <tr><td><div class="checkboxRegion">
+        <input type="checkbox" name="row$chkSelect">
+        <input type="hidden" name="row$CopyIdChx" value="copy-1">
+      </div></td><td></td><td><a>Example title</a></td>
       <td><span>Author:</span><span>Example author</span></td>
       <td><span>Group:</span><span>Book</span></td>
       <td><span>Due:</span><span>31.08.2026</span></td>
@@ -78,6 +84,30 @@ class LoanTest(unittest.TestCase):
                 '<div id="x_extensionsPopup_divExtensionFailed" '
                 'class="dnnFormMessage dnnFormError" role="alert">'
                 "<span>Rejected</span></div>"
+            ),
+        )
+
+    def test_checkbox_preparation_and_confirmation(self) -> None:
+        checkbox, submit, value = parse_bulk_renewal_controls(HTML, "copy-1")
+        payload = parse_postback_form(
+            HTML, "https://example.test/Mein-Konto"
+        ).checkbox_submission(checkbox, submit, value)
+
+        self.assertIn(("__EVENTTARGET", ""), payload)
+        self.assertIn(("row$chkSelect", "on"), payload)
+        self.assertIn(("account$BtnExtendMediums", "Renew selected"), payload)
+        self.assertFalse(any(name.endswith("BtnExtendThis") for name, _ in payload))
+        self.assertFalse(
+            any(name.endswith("loansExtensionPopup$btnDefault") for name, _ in payload)
+        )
+        self.assertEqual(
+            ("Please confirm", "1.50 EUR"),
+            parse_renewal_confirmation(
+                '<div id="x_loansExtensionPopup_popup" '
+                'class="oclc-module-popup oclc-in-module-popup">'
+                '<span id="x_LblConfirmMessage">Please confirm</span>'
+                '<span id="x_LblFeeTotalData">1.50 EUR</span>'
+                '<input name="x$loansExtensionPopup$btnDefault"></div>'
             ),
         )
 

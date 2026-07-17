@@ -35,3 +35,16 @@ class RejectedRenewalProbe:
     message: str
     response_url: str
     account_unchanged: bool
+
+
+@dataclass(frozen=True)
+class RenewalPreparation:
+    """Outcome of selecting one loan through BtnExtendMediums."""
+
+    copy_id: str
+    confirmation_required: bool
+    account_changed: bool
+    message: str | None
+    fee_text: str | None
+    response_url: str
+    response_html: str
