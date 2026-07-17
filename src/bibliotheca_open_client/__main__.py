@@ -25,6 +25,7 @@ async def _run(
     base_url: str,
     snapshot: Path | None,
     username: str | None,
+    rejected_probe_copy_id: str | None,
 ) -> None:
     login_reply = None
     response_cookie_names: tuple[str, ...] = ()
@@ -44,6 +45,11 @@ async def _run(
             session_cookie_names = result.session_cookie_names
             account_cookie_names = result.account_cookie_names
             loans = await client.async_fetch_loans(page) if authenticated else ()
+            probe = (
+                await client.async_probe_rejected_renewal(rejected_probe_copy_id)
+                if authenticated and rejected_probe_copy_id is not None
+                else None
+            )
 
     if snapshot is not None:
         _save_private(snapshot, page.html)
@@ -64,6 +70,9 @@ async def _run(
         if authenticated:
             renewable = sum(loan.renewal is not None and loan.renewal.renewable for loan in loans)
             print(f"Loans: {len(loans)} ({renewable} currently renewable)")
+            if probe is not None:
+                print(f"Rejected-renewal probe: {probe.message}")
+                print(f"Account unchanged: {'yes' if probe.account_unchanged else 'no'}")
         print(
             "Session cookies after login: "
             + (", ".join(session_cookie_names) if session_cookie_names else "none")
@@ -100,8 +109,22 @@ def main() -> None:
         metavar="PATH",
         help="save potentially sensitive HTML (default: .debug/account.html)",
     )
+    parser.add_argument(
+        "--probe-rejected-renewal",
+        metavar="COPY_ID",
+        help="dangerous diagnostic: submit a freshly nonrenewable copy and expect rejection",
+    )
     arguments = parser.parse_args()
-    asyncio.run(_run(arguments.base_url, arguments.save_html, arguments.username))
+    if arguments.probe_rejected_renewal and not arguments.username:
+        parser.error("--probe-rejected-renewal requires --username")
+    asyncio.run(
+        _run(
+            arguments.base_url,
+            arguments.save_html,
+            arguments.username,
+            arguments.probe_rejected_renewal,
+        )
+    )
 
 
 if __name__ == "__main__":

@@ -25,3 +25,13 @@ class Loan:
     media_group: str | None
     due_date: date
     renewal: RenewalStatus | None
+
+
+@dataclass(frozen=True)
+class RejectedRenewalProbe:
+    """Expected rejection from a guarded direct-renewal diagnostic."""
+
+    copy_id: str
+    message: str
+    response_url: str
+    account_unchanged: bool

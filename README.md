@@ -76,6 +76,20 @@ confirms that path. Client code must use the checkbox path, keep preparation and
 confirmation as separate explicit operations, and never submit either
 mutating target as a side effect of reading account data.
 
+For development only, a rejected direct-renewal postback can validate the
+multipart WebForms reconstruction against a known nonrenewable copy:
+
+```bash
+.venv/bin/python -m bibliotheca_open_client \
+  --username YOUR_LIBRARY_ID \
+  --probe-rejected-renewal COPY_ID
+```
+
+This is deliberately labelled dangerous because `BtnExtendThis` is mutating.
+The client refreshes the account and status immediately beforehand and refuses
+the POST unless OPEN explicitly reports that copy as nonrenewable. Use it only
+for a copy whose rejection is understood; it is not part of normal client use.
+
 ## Check
 
 ```bash

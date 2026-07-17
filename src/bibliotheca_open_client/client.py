@@ -3,13 +3,16 @@
 from dataclasses import dataclass
 from urllib.parse import urlencode, urljoin, urlsplit
 
-from aiohttp import ClientSession, ClientTimeout, CookieJar
+from aiohttp import ClientSession, ClientTimeout, CookieJar, FormData
 from yarl import URL
 
-from .models import Loan
+from .models import Loan, RejectedRenewalProbe
 from .parser import (
+    parse_direct_renewal_failure,
+    parse_direct_renewal_target,
     parse_login_form,
     parse_loans,
+    parse_postback_form,
     parse_renewal_query,
     parse_renewal_statuses,
 )
@@ -194,6 +197,65 @@ class BibliothecaClient:
             response.raise_for_status()
             statuses = parse_renewal_statuses(await response.json())
         return parse_loans(page.html, statuses)
+
+    async def async_probe_rejected_renewal(self, copy_id: str) -> RejectedRenewalProbe:
+        """Probe WebForms reconstruction only for a freshly rejected loan.
+
+        This intentionally calls OPEN's mutating direct-renewal endpoint, but
+        refuses to do so unless the immediately preceding status response says
+        the copy is not renewable.
+        """
+
+        page = await self.async_fetch_account_page()
+        loans = await self.async_fetch_loans(page)
+        loan = next((item for item in loans if item.copy_id == copy_id), None)
+        if loan is None:
+            raise ValueError("copy ID is not present in the current account")
+        if loan.renewal is None:
+            raise RuntimeError("renewal status is unavailable; refusing diagnostic POST")
+        if loan.renewal.renewable:
+            raise RuntimeError("copy is renewable; refusing diagnostic POST")
+
+        target = parse_direct_renewal_target(page.html, copy_id)
+        postback = parse_postback_form(page.html, page.url)
+        form_data = FormData(default_to_multipart=True)
+        for name, value in postback.payload(target):
+            form_data.add_field(name, value)
+
+        origin = f"{urlsplit(self._base_url).scheme}://{urlsplit(self._base_url).netloc}"
+        headers = {
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "de,en-US;q=0.9,en;q=0.8",
+            "Cache-Control": "no-cache",
+            "Origin": origin,
+            "Pragma": "no-cache",
+            "Referer": self._base_url,
+            "User-Agent": _BROWSER_USER_AGENT,
+        }
+        session = await self._ensure_session()
+        async with session.post(postback.action_url, data=form_data, headers=headers) as response:
+            response.raise_for_status()
+            response_page = FetchedPage(
+                url=str(response.url),
+                status=response.status,
+                html=await response.text(),
+            )
+
+        message = parse_direct_renewal_failure(response_page.html)
+        if message is None:
+            raise RuntimeError("unexpected direct-renewal response; expected rejection missing")
+        response_loans = parse_loans(response_page.html)
+        response_loan = next((item for item in response_loans if item.copy_id == copy_id), None)
+        return RejectedRenewalProbe(
+            copy_id=copy_id,
+            message=message,
+            response_url=response_page.url,
+            account_unchanged=(
+                len(response_loans) == len(loans)
+                and response_loan is not None
+                and response_loan.due_date == loan.due_date
+            ),
+        )
 
     async def async_close(self) -> None:
         """Close only sessions created by this client."""

@@ -56,6 +56,31 @@ class RenewalQuery:
     local_resource_file: str
 
 
+@dataclass(frozen=True)
+class PostbackForm:
+    """Successful controls from a WebForms form."""
+
+    action_url: str
+    fields: tuple[tuple[str, str], ...]
+
+    def payload(self, event_target: str) -> tuple[tuple[str, str], ...]:
+        found: set[str] = set()
+        payload: list[tuple[str, str]] = []
+        for name, value in self.fields:
+            if name == "__EVENTTARGET":
+                value = event_target
+                found.add(name)
+            elif name == "__EVENTARGUMENT":
+                value = ""
+                found.add(name)
+            payload.append((name, value))
+        if "__EVENTTARGET" not in found:
+            payload.insert(0, ("__EVENTTARGET", event_target))
+        if "__EVENTARGUMENT" not in found:
+            payload.insert(1, ("__EVENTARGUMENT", ""))
+        return tuple(payload)
+
+
 def _field_name(element: Tag | None, description: str) -> str:
     if element is None or not isinstance(element.get("name"), str):
         raise ValueError(f"login form has no named {description} field")
@@ -205,3 +230,65 @@ def parse_renewal_statuses(data: object) -> tuple[RenewalStatus, ...]:
             )
         )
     return tuple(statuses)
+
+
+def parse_postback_form(html: str, page_url: str) -> PostbackForm:
+    """Collect enabled successful controls for a browser-like postback."""
+
+    soup = BeautifulSoup(html, "html.parser")
+    form = soup.find("form", id="Form")
+    if not isinstance(form, Tag):
+        raise ValueError("account page has no WebForms form")
+
+    fields: list[tuple[str, str]] = []
+    for element in form.find_all(["input", "select", "textarea"]):
+        name = element.get("name")
+        if not isinstance(name, str) or element.has_attr("disabled"):
+            continue
+        if element.name == "input":
+            input_type = str(element.get("type", "text")).lower()
+            if input_type in {"button", "file", "reset", "submit"}:
+                continue
+            if input_type in {"checkbox", "radio"} and not element.has_attr("checked"):
+                continue
+            fields.append((name, str(element.get("value", "on"))))
+        elif element.name == "textarea":
+            fields.append((name, element.get_text()))
+        else:
+            selected = element.find_all("option", selected=True)
+            if not selected:
+                selected = element.find_all("option")[:1]
+            fields.extend((name, str(option.get("value", option.get_text()))) for option in selected)
+
+    return PostbackForm(
+        action_url=urljoin(page_url, str(form.get("action", ""))),
+        fields=tuple(fields),
+    )
+
+
+def parse_direct_renewal_target(html: str, copy_id: str) -> str:
+    """Find the direct BtnExtendThis event target belonging to a copy ID."""
+
+    soup = BeautifulSoup(html, "html.parser")
+    copy_input = soup.find(
+        "input",
+        attrs={"name": re.compile(r"CopyId$")},
+        value=copy_id,
+    )
+    row = copy_input.find_parent("tr") if isinstance(copy_input, Tag) else None
+    link = row.select_one("a.oclc-patronaccountmodule-extendThis") if isinstance(row, Tag) else None
+    href = str(link.get("href", "")) if isinstance(link, Tag) else ""
+    match = re.search(r"__doPostBack\('([^']+)'\s*,\s*'[^']*'\)", href)
+    if match is None:
+        raise ValueError("loan has no direct renewal postback target")
+    return match.group(1)
+
+
+def parse_direct_renewal_failure(html: str) -> str | None:
+    """Return OPEN's direct-renewal failure message, if present."""
+
+    soup = BeautifulSoup(html, "html.parser")
+    error = soup.select_one(
+        'div[id$="extensionsPopup_divExtensionFailed"].dnnFormError[role="alert"]'
+    )
+    return error.get_text(" ", strip=True) or None if isinstance(error, Tag) else None

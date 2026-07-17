@@ -4,10 +4,19 @@ from datetime import date
 import unittest
 
 from bibliotheca_open_client import RenewalStatus, parse_loans
-from bibliotheca_open_client.parser import parse_renewal_statuses
+from bibliotheca_open_client.parser import (
+    parse_direct_renewal_failure,
+    parse_direct_renewal_target,
+    parse_postback_form,
+    parse_renewal_statuses,
+)
 
 
 HTML = """
+<form id="Form" action="/Mein-Konto">
+<input type="hidden" name="__EVENTTARGET" value="">
+<input type="hidden" name="__EVENTARGUMENT" value="old">
+<input type="hidden" name="__dnnVariable" value="state">
 <table id="dnn_ctr375_MainView_tpnlLoans_ucLoansView_grdViewLoans">
   <tr><th>Select</th><th>Cover</th><th>Title</th><th>Author</th>
       <th>Group</th><th>Due</th><th>Renewal</th></tr>
@@ -17,8 +26,11 @@ HTML = """
       <td><span>Due:</span><span>31.08.2026</span></td>
       <td><div class="extendableRegion">
         <input type="hidden" name="row$CopyId" value="copy-1">
+        <a class="oclc-patronaccountmodule-extendThis"
+           href="javascript:__doPostBack('row$BtnExtendThis','')">Renew</a>
       </div></td></tr>
 </table>
+</form>
 """
 
 
@@ -50,6 +62,23 @@ class LoanTest(unittest.TestCase):
                 delay_text="Try again later.",
             ),
             loans[0].renewal,
+        )
+
+    def test_direct_postback_reconstruction_and_failure(self) -> None:
+        target = parse_direct_renewal_target(HTML, "copy-1")
+        form = parse_postback_form(HTML, "https://example.test/Mein-Konto")
+
+        self.assertEqual("row$BtnExtendThis", target)
+        self.assertIn(("__EVENTTARGET", target), form.payload(target))
+        self.assertIn(("__EVENTARGUMENT", ""), form.payload(target))
+        self.assertIn(("__dnnVariable", "state"), form.payload(target))
+        self.assertEqual(
+            "Rejected",
+            parse_direct_renewal_failure(
+                '<div id="x_extensionsPopup_divExtensionFailed" '
+                'class="dnnFormMessage dnnFormError" role="alert">'
+                "<span>Rejected</span></div>"
+            ),
         )
 
 
