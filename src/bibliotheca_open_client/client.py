@@ -6,7 +6,13 @@ from urllib.parse import urlencode, urljoin, urlsplit
 from aiohttp import ClientSession, ClientTimeout, CookieJar
 from yarl import URL
 
-from .parser import parse_login_form
+from .models import Loan
+from .parser import (
+    parse_login_form,
+    parse_loans,
+    parse_renewal_query,
+    parse_renewal_statuses,
+)
 
 
 _BROWSER_USER_AGENT = (
@@ -161,6 +167,33 @@ class BibliothecaClient:
             session_cookie_names=session_cookie_names,
             account_cookie_names=account_cookie_names,
         )
+
+    async def async_fetch_loans(self, page: FetchedPage | None = None) -> tuple[Loan, ...]:
+        """Load loans and their asynchronous renewal decisions."""
+
+        page = page or await self.async_fetch_account_page()
+        query = parse_renewal_query(page.html, page.url)
+        if query is None or not query.copy_ids:
+            return parse_loans(page.html)
+
+        session = await self._ensure_session()
+        payload = {
+            "portalId": query.portal_id,
+            "userName": query.user_name,
+            "copyIds": ",".join(query.copy_ids),
+            "culture": query.culture,
+            "localResourceFile": query.local_resource_file,
+        }
+        headers = {
+            "Accept": "application/json, text/javascript, */*; q=0.01",
+            "Referer": page.url,
+            "User-Agent": _BROWSER_USER_AGENT,
+            "X-Requested-With": "XMLHttpRequest",
+        }
+        async with session.post(query.endpoint, json=payload, headers=headers) as response:
+            response.raise_for_status()
+            statuses = parse_renewal_statuses(await response.json())
+        return parse_loans(page.html, statuses)
 
     async def async_close(self) -> None:
         """Close only sessions created by this client."""

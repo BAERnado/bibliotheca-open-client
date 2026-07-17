@@ -1,12 +1,16 @@
 """Async client for bibliotheca-open.de."""
 
 from .client import BibliothecaClient, FetchedPage, LoginResult
-from .parser import LoginForm, parse_login_form
+from .models import Loan, RenewalStatus
+from .parser import LoginForm, parse_login_form, parse_loans
 
 __all__ = [
     "BibliothecaClient",
     "FetchedPage",
     "LoginForm",
     "LoginResult",
+    "Loan",
+    "RenewalStatus",
     "parse_login_form",
+    "parse_loans",
 ]

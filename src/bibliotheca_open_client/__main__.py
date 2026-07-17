@@ -43,6 +43,7 @@ async def _run(
             response_cookie_names = result.response_cookie_names
             session_cookie_names = result.session_cookie_names
             account_cookie_names = result.account_cookie_names
+            loans = await client.async_fetch_loans(page) if authenticated else ()
 
     if snapshot is not None:
         _save_private(snapshot, page.html)
@@ -60,6 +61,9 @@ async def _run(
             "Login response cookies: "
             + (", ".join(response_cookie_names) if response_cookie_names else "none")
         )
+        if authenticated:
+            renewable = sum(loan.renewal is not None and loan.renewal.renewable for loan in loans)
+            print(f"Loans: {len(loans)} ({renewable} currently renewable)")
         print(
             "Session cookies after login: "
             + (", ".join(session_cookie_names) if session_cookie_names else "none")
