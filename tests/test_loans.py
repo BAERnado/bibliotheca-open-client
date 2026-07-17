@@ -1,9 +1,10 @@
 """Regression checks for loans and asynchronous renewal decisions."""
 
 from datetime import date
+from decimal import Decimal
 import unittest
 
-from bibliotheca_open_client import Loan, RenewalStatus, parse_loans
+from bibliotheca_open_client import Loan, RenewalStatus, parse_account_balance, parse_loans
 from bibliotheca_open_client.parser import (
     parse_bulk_renewal_controls,
     parse_direct_renewal_failure,
@@ -40,6 +41,21 @@ HTML = """
 
 
 class LoanTest(unittest.TestCase):
+    def test_account_balance(self) -> None:
+        balance = parse_account_balance(
+            '<div class="oclc-patronaccountmodule-fees-summary">'
+            '<span id="x_lblFeeTotalData">12,50 EUR</span>'
+            '<span id="x_lblDepositData">2,00 EUR</span>'
+            '<span id="x_lblTotalSaldoData">10,50 EUR</span></div>'
+        )
+
+        self.assertIsNotNone(balance)
+        assert balance is not None
+        self.assertEqual(Decimal("12.50"), balance.open_fees.amount)
+        self.assertEqual(Decimal("2.00"), balance.deposits.amount)
+        self.assertEqual(Decimal("10.50"), balance.total.amount)
+        self.assertEqual("EUR", balance.total.currency)
+
     def test_overdue_is_derived_from_due_date(self) -> None:
         loan = Loan("copy", "Title", None, None, date.min, None)
 

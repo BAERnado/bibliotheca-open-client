@@ -2,6 +2,24 @@
 
 from dataclasses import dataclass
 from datetime import date
+from decimal import Decimal
+
+
+@dataclass(frozen=True)
+class Money:
+    """A monetary amount returned by OPEN."""
+
+    amount: Decimal
+    currency: str
+
+
+@dataclass(frozen=True)
+class AccountBalance:
+    """Fee summary shown in the patron account."""
+
+    open_fees: Money
+    deposits: Money
+    total: Money
 
 
 @dataclass(frozen=True)

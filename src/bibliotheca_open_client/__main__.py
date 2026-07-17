@@ -33,6 +33,7 @@ async def _run(
     session_cookie_names: tuple[str, ...] = ()
     account_cookie_names: tuple[str, ...] = ()
     loans = ()
+    balance = None
     probe = None
     renewal = None
     async with BibliothecaClient(base_url) as client:
@@ -49,6 +50,7 @@ async def _run(
             session_cookie_names = result.session_cookie_names
             account_cookie_names = result.account_cookie_names
             loans = await client.async_fetch_loans(page) if authenticated else ()
+            balance = await client.async_fetch_balance(page) if authenticated else None
             probe = (
                 await client.async_probe_rejected_renewal(rejected_probe_copy_id)
                 if authenticated and rejected_probe_copy_id is not None
@@ -83,6 +85,13 @@ async def _run(
         if authenticated:
             renewable = sum(loan.renewal is not None and loan.renewal.renewable for loan in loans)
             print(f"Loans: {len(loans)} ({renewable} currently renewable)")
+            if balance is not None:
+                print(
+                    "Balance: "
+                    f"{balance.total.amount:.2f} {balance.total.currency} "
+                    f"(fees {balance.open_fees.amount:.2f}, "
+                    f"deposits {balance.deposits.amount:.2f})"
+                )
             if probe is not None:
                 print(f"Rejected-renewal probe: {probe.message}")
                 print(f"Account unchanged: {'yes' if probe.account_unchanged else 'no'}")

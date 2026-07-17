@@ -6,8 +6,9 @@ from urllib.parse import urlencode, urljoin, urlsplit
 from aiohttp import ClientSession, ClientTimeout, CookieJar, FormData
 from yarl import URL
 
-from .models import Loan, RejectedRenewalProbe, RenewalResult
+from .models import AccountBalance, Loan, RejectedRenewalProbe, RenewalResult
 from .parser import (
+    parse_account_balance,
     parse_bulk_renewal_controls,
     parse_direct_renewal_failure,
     parse_direct_renewal_target,
@@ -198,6 +199,14 @@ class BibliothecaClient:
             response.raise_for_status()
             statuses = parse_renewal_statuses(await response.json())
         return parse_loans(page.html, statuses)
+
+    async def async_fetch_balance(
+        self, page: FetchedPage | None = None
+    ) -> AccountBalance | None:
+        """Load the account fee summary when the installation provides it."""
+
+        page = page or await self.async_fetch_account_page()
+        return parse_account_balance(page.html)
 
     async def async_probe_rejected_renewal(self, copy_id: str) -> RejectedRenewalProbe:
         """Probe WebForms reconstruction only for a freshly rejected loan.

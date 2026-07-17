@@ -68,8 +68,13 @@ Known cases include:
   media cannot be renewed and must first be returned.
 
 Each `Loan` exposes `overdue`, derived from whether its due date has passed.
-Fees remain server-provided text for now; account balance will be represented
+Per-loan fees remain server-provided text; the account summary is represented
 separately instead of guessing individual charges from localized messages.
+
+`async_fetch_balance()` returns the fee summary as `AccountBalance`: open fees,
+deposits, and total balance are represented as exact `Decimal` amounts with a
+currency code. It returns `None` when an installation does not provide the
+summary.
 
 OPEN exposes two different renewal paths. A per-loan `BtnExtendThis` postback
 attempts the renewal directly and is therefore a mutating operation. Do not use

@@ -2,12 +2,13 @@
 
 from dataclasses import dataclass
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 import re
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup, Tag
 
-from .models import Loan, RenewalStatus
+from .models import AccountBalance, Loan, Money, RenewalStatus
 
 
 # ponytail: an empty module ID is the generic /Login page; add a provider
@@ -193,6 +194,48 @@ def parse_loans(
             )
         )
     return tuple(loans)
+
+
+def _parse_money(text: str) -> Money:
+    match = re.fullmatch(r"\s*([+-]?[\d.,]+)\s+([A-Za-z]{3})\s*", text)
+    if match is None:
+        raise ValueError("invalid monetary value")
+    number, currency = match.groups()
+    if "," in number:
+        number = number.replace(".", "").replace(",", ".")
+    try:
+        return Money(Decimal(number), currency.upper())
+    except InvalidOperation as error:
+        raise ValueError("invalid monetary value") from error
+
+
+def parse_account_balance(html: str) -> AccountBalance | None:
+    """Parse OPEN's account fee summary when present."""
+
+    soup = BeautifulSoup(html, "html.parser")
+    summary = soup.select_one("div.oclc-patronaccountmodule-fees-summary")
+    if not isinstance(summary, Tag):
+        return None
+
+    def value(id_suffix: str) -> Money:
+        element = summary.select_one(f'span[id$="{id_suffix}"]')
+        if not isinstance(element, Tag):
+            raise ValueError(f"fee summary has no {id_suffix}")
+        return _parse_money(element.get_text(" ", strip=True))
+
+    balance = AccountBalance(
+        open_fees=value("lblFeeTotalData"),
+        deposits=value("lblDepositData"),
+        total=value("lblTotalSaldoData"),
+    )
+    currencies = {
+        balance.open_fees.currency,
+        balance.deposits.currency,
+        balance.total.currency,
+    }
+    if len(currencies) != 1:
+        raise ValueError("fee summary contains mixed currencies")
+    return balance
 
 
 def parse_renewal_query(html: str, page_url: str) -> RenewalQuery | None:
