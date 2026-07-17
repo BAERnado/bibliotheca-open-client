@@ -3,7 +3,7 @@
 from datetime import date
 import unittest
 
-from bibliotheca_open_client import RenewalStatus, parse_loans
+from bibliotheca_open_client import Loan, RenewalStatus, parse_loans
 from bibliotheca_open_client.parser import (
     parse_bulk_renewal_controls,
     parse_direct_renewal_failure,
@@ -40,6 +40,11 @@ HTML = """
 
 
 class LoanTest(unittest.TestCase):
+    def test_overdue_is_derived_from_due_date(self) -> None:
+        loan = Loan("copy", "Title", None, None, date.min, None)
+
+        self.assertTrue(loan.overdue)
+
     def test_loan_with_temporary_nonrenewable_reason(self) -> None:
         statuses = parse_renewal_statuses(
             {

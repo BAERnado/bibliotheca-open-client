@@ -67,6 +67,10 @@ Known cases include:
 - overdue media, where the reason includes the accrued overdue amount. Overdue
   media cannot be renewed and must first be returned.
 
+Each `Loan` exposes `overdue`, derived from whether its due date has passed.
+Fees remain server-provided text for now; account balance will be represented
+separately instead of guessing individual charges from localized messages.
+
 OPEN exposes two different renewal paths. A per-loan `BtnExtendThis` postback
 attempts the renewal directly and is therefore a mutating operation. Do not use
 it for previews or diagnostics. The checkbox-based `BtnExtendMediums` submit

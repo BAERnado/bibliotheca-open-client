@@ -26,6 +26,12 @@ class Loan:
     due_date: date
     renewal: RenewalStatus | None
 
+    @property
+    def overdue(self) -> bool:
+        """Whether the due date has passed in the client's local timezone."""
+
+        return self.due_date < date.today()
+
 
 @dataclass(frozen=True)
 class RejectedRenewalProbe:
