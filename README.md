@@ -159,3 +159,8 @@ artifacts to production PyPI:
 Finally push the version commit and tag. PyPI releases cannot be replaced, so
 any correction requires a new version. After publishing, keep the exact client
 version in the Home Assistant integration's `manifest.json` synchronized.
+
+## License
+
+Copyright 2026 BAERnado. Licensed under the
+[Apache License 2.0](LICENSE). See [NOTICE](NOTICE) for attribution information.
