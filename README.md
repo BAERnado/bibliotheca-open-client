@@ -164,3 +164,13 @@ version in the Home Assistant integration's `manifest.json` synchronized.
 
 Copyright 2026 BAERnado. Licensed under the
 [Apache License 2.0](LICENSE). See [NOTICE](NOTICE) for attribution information.
+
+## Development disclosure
+
+This project was developed predominantly with AI-assisted *vibe coding*. The
+project owner directed the requirements, supplied live observations, performed
+functional tests, and reviewed parts of the source code, but did not manually
+write or comprehensively audit every implementation detail. Users and
+contributors should therefore review and test the code appropriately for their
+own environment, especially before relying on account-changing operations such
+as renewals.
